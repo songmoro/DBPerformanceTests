@@ -1,0 +1,245 @@
+import SwiftUI
+
+@MainActor
+struct ContentView: View {
+    @State private var isRunning = false
+    @State private var currentDatabase = ""
+    @State private var logMessages: [String] = []
+    @State private var selectedDatabase: DatabaseType = .userDefaults
+    @State private var selectedModel: ModelType = .simple
+
+    enum DatabaseType: String, CaseIterable {
+        case userDefaults = "UserDefaults"
+        case swiftData = "SwiftData"
+        case coreData = "CoreData"
+        case realm = "Realm"
+    }
+
+    enum ModelType: String, CaseIterable {
+        case simple = "Simple"
+        case complex = "Complex"
+    }
+
+    var body: some View {
+        VStack(spacing: 20) {
+            Text("Database Performance Tests")
+                .font(.largeTitle)
+                .bold()
+
+            VStack(spacing: 10) {
+                Picker("Select Database", selection: $selectedDatabase) {
+                    ForEach(DatabaseType.allCases, id: \.self) { db in
+                        Text(db.rawValue).tag(db)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .disabled(isRunning)
+
+                Picker("Select Model", selection: $selectedModel) {
+                    ForEach(ModelType.allCases, id: \.self) { model in
+                        Text(model.rawValue).tag(model)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .disabled(isRunning)
+            }
+
+            HStack(spacing: 15) {
+                Button("Run Benchmark") {
+                    Task {
+                        await runBenchmark()
+                    }
+                }
+                .disabled(isRunning)
+                .buttonStyle(.borderedProminent)
+
+                Button("Run All") {
+                    Task {
+                        await runAllBenchmarks()
+                    }
+                }
+                .disabled(isRunning)
+                .buttonStyle(.bordered)
+
+                Button("Clear Logs") {
+                    logMessages.removeAll()
+                }
+                .disabled(isRunning)
+                .buttonStyle(.bordered)
+            }
+
+            if isRunning {
+                ProgressView("Running: \(currentDatabase) [\(selectedModel.rawValue)Model]")
+                    .padding()
+            }
+
+            ScrollView {
+                VStack(alignment: .leading, spacing: 5) {
+                    ForEach(Array(logMessages.enumerated()), id: \.offset) { _, message in
+                        Text(message)
+                            .font(.system(.body, design: .monospaced))
+                            .textSelection(.enabled)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding()
+            }
+            .frame(maxHeight: .infinity)
+            .background(Color(.textBackgroundColor))
+            .cornerRadius(8)
+        }
+        .padding()
+        .frame(minWidth: 800, minHeight: 600)
+    }
+
+    private func runBenchmark() async {
+        guard !isRunning else { return }
+
+        isRunning = true
+        currentDatabase = selectedDatabase.rawValue
+        log("=== Starting benchmark for \(selectedDatabase.rawValue) [\(selectedModel.rawValue)Model] ===")
+
+        do {
+            switch selectedModel {
+            case .simple:
+                try await runSimpleModelBenchmark()
+            case .complex:
+                try await runComplexModelBenchmark()
+            }
+
+            log("=== Benchmark completed successfully ===\n")
+        } catch {
+            log("ERROR: \(error.localizedDescription)")
+        }
+
+        isRunning = false
+        currentDatabase = ""
+    }
+
+    private func runAllBenchmarks() async {
+        for dbType in DatabaseType.allCases {
+            selectedDatabase = dbType
+            for modelType in ModelType.allCases {
+                selectedModel = modelType
+                await runBenchmark()
+
+                // 벤치마크 간 대기
+                try? await Task.sleep(for: .seconds(2))
+            }
+        }
+    }
+
+    // MARK: - SimpleModel Benchmarks
+
+    private func runSimpleModelBenchmark() async throws {
+        switch selectedDatabase {
+        case .userDefaults:
+            let adapter = UserDefaultsAdapter(suiteName: "com.dbtest.userdefaults.simple")
+            let orchestrator = SimpleBenchmarkOrchestrator(adapter: adapter)
+            let result = try await orchestrator.runFullBenchmark()
+            try saveAndLog(result: result)
+
+        case .swiftData:
+            let adapter = SwiftDataAdapter()
+            let orchestrator = SimpleBenchmarkOrchestrator(adapter: adapter)
+            let result = try await orchestrator.runFullBenchmark()
+            try saveAndLog(result: result)
+
+        case .coreData:
+            let adapter = CoreDataAdapter()
+            let orchestrator = SimpleBenchmarkOrchestrator(adapter: adapter)
+            let result = try await orchestrator.runFullBenchmark()
+            try saveAndLog(result: result)
+
+        case .realm:
+            let adapter = RealmAdapter()
+            let orchestrator = SimpleBenchmarkOrchestrator(adapter: adapter)
+            let result = try await orchestrator.runFullBenchmark()
+            try saveAndLog(result: result)
+        }
+    }
+
+    // MARK: - ComplexModel Benchmarks
+
+    private func runComplexModelBenchmark() async throws {
+        switch selectedDatabase {
+        case .userDefaults:
+            let adapter = UserDefaultsComplexAdapter(suiteName: "com.dbtest.userdefaults.complex")
+            let orchestrator = ComplexBenchmarkOrchestrator(adapter: adapter)
+            let result = try await orchestrator.runFullBenchmark()
+            try saveAndLog(result: result)
+
+        case .swiftData:
+            let adapter = SwiftDataComplexAdapter()
+            let orchestrator = ComplexBenchmarkOrchestrator(adapter: adapter)
+            let result = try await orchestrator.runFullBenchmark()
+            try saveAndLog(result: result)
+
+        case .coreData:
+            let adapter = CoreDataComplexAdapter()
+            let orchestrator = ComplexBenchmarkOrchestrator(adapter: adapter)
+            let result = try await orchestrator.runFullBenchmark()
+            try saveAndLog(result: result)
+
+        case .realm:
+            let adapter = RealmComplexAdapter()
+            let orchestrator = ComplexBenchmarkOrchestrator(adapter: adapter)
+            let result = try await orchestrator.runFullBenchmark()
+            try saveAndLog(result: result)
+        }
+    }
+
+    private func saveAndLog(result: BenchmarkResult) throws {
+        let resultsDir = getResultsDirectory()
+        try result.save(to: resultsDir)
+
+        log("Results saved to: \(resultsDir.path)")
+        logResultSummary(result)
+    }
+
+    private func getResultsDirectory() -> URL {
+        let fileManager = FileManager.default
+        let projectDir = fileManager.currentDirectoryPath
+        let resultsPath = "\(projectDir)/Results"
+
+        // Results 디렉토리 생성
+        if !fileManager.fileExists(atPath: resultsPath) {
+            try? fileManager.createDirectory(atPath: resultsPath, withIntermediateDirectories: true)
+        }
+
+        return URL(fileURLWithPath: resultsPath)
+    }
+
+    private func logResultSummary(_ result: BenchmarkResult) {
+        log("\nSummary:")
+        log("  Database: \(result.metadata.databaseName)")
+        log("  Version: \(result.metadata.databaseVersion)")
+        log("  CPU: \(result.metadata.environment.cpuModel)")
+        log("  RAM: \(String(format: "%.2f GB", result.metadata.environment.ramSize))")
+
+        for stage in result.results {
+            log("\n  Data Size: \(stage.dataSize)")
+            if let initialization = stage.measurements.initialization {
+                log("    Initialization: \(String(format: "%.2f ms", initialization))")
+            }
+            log("    Create: \(String(format: "%.2f ms", stage.measurements.create))")
+            log("    Batch: \(String(format: "%.2f ms", stage.measurements.batchCreate))")
+            log("    Read: \(String(format: "%.2f ms", stage.measurements.read))")
+            log("    Update: \(String(format: "%.2f ms", stage.measurements.update))")
+
+            if let delete = stage.measurements.delete {
+                log("    Delete: \(String(format: "%.2f ms", delete))")
+            }
+        }
+    }
+
+    private func log(_ message: String) {
+        logMessages.append(message)
+        print(message)
+    }
+}
+
+
+#Preview {
+    ContentView()
+}
