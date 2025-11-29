@@ -18,6 +18,7 @@ struct ContentView: View {
     enum ModelType: String, CaseIterable {
         case simple = "Simple"
         case complex = "Complex"
+        case search = "Search"
     }
 
     var body: some View {
@@ -60,6 +61,17 @@ struct ContentView: View {
                 }
                 .disabled(isRunning)
                 .buttonStyle(.bordered)
+
+                if selectedModel == .search {
+                    Button("Generate Fixtures") {
+                        Task {
+                            await generateFixturesUI()
+                        }
+                    }
+                    .disabled(isRunning)
+                    .buttonStyle(.borderedProminent)
+                    .tint(.green)
+                }
 
                 Button("Clear Logs") {
                     logMessages.removeAll()
@@ -105,6 +117,8 @@ struct ContentView: View {
                 try await runSimpleModelBenchmark()
             case .complex:
                 try await runComplexModelBenchmark()
+            case .search:
+                try await runSearchBenchmark()
             }
 
             log("=== Benchmark completed successfully ===\n")
@@ -156,6 +170,57 @@ struct ContentView: View {
             let orchestrator = SimpleBenchmarkOrchestrator(adapter: adapter)
             let result = try await orchestrator.runFullBenchmark()
             try saveAndLog(result: result)
+        }
+    }
+
+    // MARK: - Fixture Generation
+
+    private func generateFixturesUI() async {
+        guard !isRunning else { return }
+
+        isRunning = true
+        currentDatabase = "Fixture Generator"
+        log("=== Generating Fixture Files ===")
+        log("This may take several minutes...")
+
+        await generateFixtures()
+
+        isRunning = false
+        currentDatabase = ""
+    }
+
+    // MARK: - Search Benchmarks
+
+    private func runSearchBenchmark() async throws {
+        // Fixture 파일 경로 확인
+        let fixturePath = getFixturePath()
+
+        guard FileManager.default.fileExists(atPath: fixturePath) else {
+            log("ERROR: Fixture file not found at: \(fixturePath)")
+            log("Please generate fixture file first using FixtureGenerator")
+            throw SearchBenchmarkError.fixtureNotFound(path: fixturePath)
+        }
+
+        log("Using fixture: \(fixturePath)")
+
+        let orchestrator = SearchOrchestrator()
+
+        switch selectedDatabase {
+        case .realm:
+            let report = try await orchestrator.runRealmBenchmark(fixturePath: fixturePath)
+            try saveAndLogSearchReport(report: report)
+
+        case .coreData:
+            let report = try await orchestrator.runCoreDataBenchmark(fixturePath: fixturePath)
+            try saveAndLogSearchReport(report: report)
+
+        case .swiftData:
+            let report = try await orchestrator.runSwiftDataBenchmark(fixturePath: fixturePath)
+            try saveAndLogSearchReport(report: report)
+
+        case .userDefaults:
+            let report = try await orchestrator.runUserDefaultsBenchmark(fixturePath: fixturePath)
+            try saveAndLogSearchReport(report: report)
         }
     }
 
@@ -236,6 +301,49 @@ struct ContentView: View {
     private func log(_ message: String) {
         logMessages.append(message)
         print(message)
+    }
+
+    // MARK: - Search Report Helpers
+
+    private func getFixturePath() -> String {
+        let projectDir = FileManager.default.currentDirectoryPath
+        return "\(projectDir)/Sources/Fixtures/flat-1m.json"
+    }
+
+    private func saveAndLogSearchReport(report: SearchBenchmarkReport) throws {
+        let resultsDir = getResultsDirectory()
+        try report.save(to: resultsDir)
+
+        log("Results saved to: \(resultsDir.path)")
+        logSearchReportSummary(report)
+    }
+
+    private func logSearchReportSummary(_ report: SearchBenchmarkReport) {
+        log("\nSearch Benchmark Summary:")
+        log("  Database: \(report.metadata.databaseName)")
+        log("  Version: \(report.metadata.databaseVersion)")
+        log("  Fixture Load Time: \(String(format: "%.2f ms", report.fixtureLoadTimeMs))")
+        log("\n  Search Results:")
+
+        for result in report.searchResults {
+            log("    [\(result.scenario)] \(result.queryCondition ?? "")")
+            log("      Response Time: \(String(format: "%.2f ms", result.responseTimeMs))")
+            log("      Result Count: \(result.resultCount)")
+            log("      Indexed: \(result.indexed)")
+        }
+    }
+}
+
+// MARK: - Search Benchmark Error
+
+enum SearchBenchmarkError: Error, CustomStringConvertible {
+    case fixtureNotFound(path: String)
+
+    var description: String {
+        switch self {
+        case .fixtureNotFound(let path):
+            return "Fixture file not found at: \(path)"
+        }
     }
 }
 

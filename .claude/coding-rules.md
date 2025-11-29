@@ -18,30 +18,57 @@
 [CR-08] Sources/Databases: 각 DB별 구현체 (Realm, CoreData, SwiftData, UserDefaults)
 [CR-09] Sources/Benchmarks: 벤치마크 실행 엔진
 [CR-10] Sources/Models: 테스트 데이터 모델
-[CR-11] Sources/Results: 결과 저장 및 비교 로직
+[CR-11] Sources/Fixtures: 1M 레코드 fixture 파일 저장 위치 (JSON/CSV)
 [CR-12] Results/: JSON 결과 파일 저장 폴더
 
-## 공통 인터페이스 설계
+## 검색 인터페이스 설계
 
-[CR-13] 공통 인터페이스를 정의하고 각 데이터베이스가 이를 구현
-[CR-14] 컴파일 타임에 타입을 확정하여 런타임 오버헤드 방지 (제네릭 또는 associated type 활용)
-[CR-15] 프로토콜 기반이 아닌 구체 타입 사용 시 성능 이점 고려
+[CR-13] SearchQuery 프로토콜 정의로 통일된 검색 인터페이스 제공
+[CR-14] 4가지 검색 타입 지원: Equality, Range, Complex, FullText
+[CR-15] 검색 결과 반환 시 결과 개수와 응답 시간을 함께 측정
+[CR-16] 인덱스 정보 명시 (indexed: Bool)
 
 ## 테스트 데이터 스키마
 
-[CR-16] 단순 모델: 5개 기본 타입 속성 (String, Int, Double, Bool, Date)
-[CR-17] 복잡 모델: 관계 포함 (1:N 관계), 최대 5뎁스까지
-[CR-18] 모든 데이터는 고유 식별자(ID) 보유
+[CR-17] 검색 최적화 모델: 검색용 필드 포함 (id, name, category, price, date, description)
+[CR-18] 인덱스 전략: name, category 필드에 인덱스 적용; price는 범위 검색용
+[CR-19] Full-Text 검색용 description 필드 (긴 텍스트)
+[CR-20] 모든 데이터는 고유 식별자(ID) 보유
+
+## Fixture 파일 로딩
+
+[CR-21] Fixture 파일 위치: Sources/Fixtures/
+[CR-22] JSON 또는 CSV 포맷 지원
+[CR-23] 1M 레코드 일괄 로딩 메커니즘
+[CR-24] 메모리 효율성 고려한 스트리밍 로드 옵션
+[CR-25] 로딩 시간 측정 (파일 읽기 + 파싱 + DB 저장)
+
+## 데이터베이스 인덱스 요구사항
+
+[CR-26] 모든 DB는 인덱스 정의 가능해야 함 (indexed vs non-indexed 비교 필수)
+[CR-27] 인덱스 적용 필드와 미적용 필드를 명시적으로 구분
 
 ## 비교 대상 데이터베이스
 
-[CR-19] Realm
-[CR-20] CoreData
-[CR-21] SwiftData
-[CR-22] UserDefaults
+[CR-28] Realm
+[CR-29] CoreData
+[CR-30] SwiftData
+[CR-31] UserDefaults
+
+## 데이터셋 스키마
+
+[CR-34] FlatModel 필드 정의: id, name(Indexed), category(Indexed), price, date, description, isActive
+[CR-35] RelationalModel: ProductRecord + Tag 1:N 관계
+[CR-36] Zipf 분포 파라미터: name(s=1.3, k=100), category(s=1.5, k=50)
+[CR-37] Fixture 파일 위치: Sources/Fixtures/ (flat-1m.json, relational-1m.json)
+[CR-38] Fixture 로딩: 일괄 로드 (스트리밍 미지원)
+[CR-39] 인덱스 적용 필드: name, category만
+[CR-40] 구체 타입 사용: 프로토콜 제거, DB별 독립 Searcher 클래스
+[CR-41] 검색 결과 반환: SearchResult(results, count, responseTimeMs)
+[CR-42] ContinuousClock 사용하여 검색 시간 측정
 
 ## Swift 6.0 동시성
 
-[CR-23] Swift 6.0 동시성 모델을 명시적으로 준수
-[CR-24] unchecked 사용을 최대한 지양하고 안전한 동시성 보장
+[CR-43] Swift 6.0 동시성 모델을 명시적으로 준수
+[CR-44] unchecked 사용을 최대한 지양하고 안전한 동시성 보장
 
