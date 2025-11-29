@@ -17,11 +17,12 @@ final class SearchOrchestrator {
 
     /// Realm 검색 벤치마크 실행
     /// - Parameter fixturePath: Fixture 파일 경로 (사용 안 함, 기존 DB 사용)
+    /// - Parameter dataSize: 데이터 크기 ("100k" 또는 "1m")
     /// - Returns: 검색 벤치마크 전체 결과
-    func runRealmBenchmark(fixturePath: String) async throws -> SearchBenchmarkReport {
+    func runRealmBenchmark(fixturePath: String, dataSize: String = "100k") async throws -> SearchBenchmarkReport {
         // Fixtures 디렉토리의 사전 생성된 DB 사용
         let fixturesDir = getFixturesDirectory()
-        let dbPath = "\(fixturesDir)/realm_1m.realm"
+        let dbPath = "\(fixturesDir)/realm_\(dataSize).realm"
 
         guard FileManager.default.fileExists(atPath: dbPath) else {
             throw SearchOrchestratorError.dbFileNotFound(path: dbPath)
@@ -62,25 +63,24 @@ final class SearchOrchestrator {
     }
 
     /// CoreData 검색 벤치마크 실행
-    /// - Parameter fixturePath: Fixture 파일 경로
+    /// - Parameter fixturePath: Fixture 파일 경로 (사용 안 함, 기존 DB 사용)
+    /// - Parameter dataSize: 데이터 크기 ("100k" 또는 "1m")
     /// - Returns: 검색 벤치마크 전체 결과
-    func runCoreDataBenchmark(fixturePath: String) async throws -> SearchBenchmarkReport {
-        let searcher = CoreDataSearcher(dbName: "CoreDataSearchTest")
+    func runCoreDataBenchmark(fixturePath: String, dataSize: String = "100k") async throws -> SearchBenchmarkReport {
+        let dbName = "CoreDataFixture_\(dataSize)"
+        let searcher = CoreDataSearcher(dbName: dbName)
 
         do {
-            // 1. DB 초기화
+            // 1. 기존 DB 열기
             try searcher.initializeDB()
 
-            // 2. Fixture 로드
-            let loadDuration = try await searcher.loadFromFixture(path: fixturePath)
-
-            // 3. 환경 정보 수집
+            // 2. 환경 정보 수집
             let environment = EnvironmentCollector.collect()
 
-            // 4. 검색 시나리오 실행
+            // 3. 검색 시나리오 실행
             let searchResults = try await scenarios.runCoreData(searcher: searcher, indexed: true)
 
-            // 5. 결과 조합
+            // 4. 결과 조합
             let report = SearchBenchmarkReport(
                 metadata: SearchBenchmarkReport.Metadata(
                     timestamp: Date(),
@@ -88,43 +88,38 @@ final class SearchOrchestrator {
                     databaseVersion: getCoreDataVersion(),
                     environment: environment
                 ),
-                fixtureLoadTimeMs: loadDuration.milliseconds,
+                fixtureLoadTimeMs: 0.0, // 사전 로드됨
                 searchResults: searchResults
             )
 
-            // 6. Cleanup
-            try searcher.cleanup()
-            try searcher.deleteDatabase()
+            // 5. DB 파일 유지
+            // No cleanup, no delete
 
             return report
 
         } catch {
-            try? searcher.cleanup()
-            try? searcher.deleteDatabase()
             throw error
         }
     }
 
     /// SwiftData 검색 벤치마크 실행
-    /// - Parameter fixturePath: Fixture 파일 경로
+    /// - Parameter fixturePath: Fixture 파일 경로 (사용 안 함, 기존 DB 사용)
+    /// - Parameter dataSize: 데이터 크기 ("100k" 또는 "1m")
     /// - Returns: 검색 벤치마크 전체 결과
-    func runSwiftDataBenchmark(fixturePath: String) async throws -> SearchBenchmarkReport {
+    func runSwiftDataBenchmark(fixturePath: String, dataSize: String = "100k") async throws -> SearchBenchmarkReport {
         let searcher = SwiftDataSearcher()
 
         do {
-            // 1. DB 초기화
+            // 1. 기존 DB 열기
             try searcher.initializeDB()
 
-            // 2. Fixture 로드
-            let loadDuration = try await searcher.loadFromFixture(path: fixturePath)
-
-            // 3. 환경 정보 수집
+            // 2. 환경 정보 수집
             let environment = EnvironmentCollector.collect()
 
-            // 4. 검색 시나리오 실행
+            // 3. 검색 시나리오 실행
             let searchResults = try await scenarios.runSwiftData(searcher: searcher, indexed: true)
 
-            // 5. 결과 조합
+            // 4. 결과 조합
             let report = SearchBenchmarkReport(
                 metadata: SearchBenchmarkReport.Metadata(
                     timestamp: Date(),
@@ -132,43 +127,38 @@ final class SearchOrchestrator {
                     databaseVersion: getSwiftDataVersion(),
                     environment: environment
                 ),
-                fixtureLoadTimeMs: loadDuration.milliseconds,
+                fixtureLoadTimeMs: 0.0, // 사전 로드됨
                 searchResults: searchResults
             )
 
-            // 6. Cleanup
-            try searcher.cleanup()
-            try searcher.deleteDatabase()
+            // 5. DB 파일 유지
+            // No cleanup, no delete
 
             return report
 
         } catch {
-            try? searcher.cleanup()
-            try? searcher.deleteDatabase()
             throw error
         }
     }
 
     /// UserDefaults 검색 벤치마크 실행
-    /// - Parameter fixturePath: Fixture 파일 경로
+    /// - Parameter fixturePath: Fixture 파일 경로 (사용 안 함, 기존 데이터 사용)
+    /// - Parameter dataSize: 데이터 크기 ("100k"만 지원)
     /// - Returns: 검색 벤치마크 전체 결과
-    func runUserDefaultsBenchmark(fixturePath: String) async throws -> SearchBenchmarkReport {
-        let searcher = UserDefaultsSearcher(suiteName: "com.dbperformance.search")
+    func runUserDefaultsBenchmark(fixturePath: String, dataSize: String = "100k") async throws -> SearchBenchmarkReport {
+        let searcher = UserDefaultsSearcher(suiteName: "com.dbperformance.fixture_\(dataSize)")
 
         do {
-            // 1. DB 초기화
+            // 1. 기존 데이터 사용
             try searcher.initializeDB()
 
-            // 2. Fixture 로드
-            let loadDuration = try await searcher.loadFromFixture(path: fixturePath)
-
-            // 3. 환경 정보 수집
+            // 2. 환경 정보 수집
             let environment = EnvironmentCollector.collect()
 
-            // 4. 검색 시나리오 실행 (UserDefaults는 인덱스 미지원)
+            // 3. 검색 시나리오 실행 (UserDefaults는 인덱스 미지원)
             let searchResults = try await scenarios.runUserDefaults(searcher: searcher, indexed: false)
 
-            // 5. 결과 조합
+            // 4. 결과 조합
             let report = SearchBenchmarkReport(
                 metadata: SearchBenchmarkReport.Metadata(
                     timestamp: Date(),
@@ -176,42 +166,44 @@ final class SearchOrchestrator {
                     databaseVersion: "System",
                     environment: environment
                 ),
-                fixtureLoadTimeMs: loadDuration.milliseconds,
+                fixtureLoadTimeMs: 0.0, // 사전 로드됨
                 searchResults: searchResults
             )
 
-            // 6. Cleanup
-            try searcher.cleanup()
+            // 5. 데이터 유지
+            // No cleanup
 
             return report
 
         } catch {
-            try? searcher.cleanup()
             throw error
         }
     }
 
     /// 모든 DB에 대해 검색 벤치마크 실행
     /// - Parameter fixturePath: Fixture 파일 경로
+    /// - Parameter dataSize: 데이터 크기 ("100k" 또는 "1m")
     /// - Returns: 각 DB별 검색 벤치마크 결과 배열
-    func runAllBenchmarks(fixturePath: String) async throws -> [SearchBenchmarkReport] {
+    func runAllBenchmarks(fixturePath: String, dataSize: String = "100k") async throws -> [SearchBenchmarkReport] {
         var reports: [SearchBenchmarkReport] = []
 
         // Realm
-        let realmReport = try await runRealmBenchmark(fixturePath: fixturePath)
+        let realmReport = try await runRealmBenchmark(fixturePath: fixturePath, dataSize: dataSize)
         reports.append(realmReport)
 
         // CoreData
-        let coreDataReport = try await runCoreDataBenchmark(fixturePath: fixturePath)
+        let coreDataReport = try await runCoreDataBenchmark(fixturePath: fixturePath, dataSize: dataSize)
         reports.append(coreDataReport)
 
         // SwiftData
-        let swiftDataReport = try await runSwiftDataBenchmark(fixturePath: fixturePath)
+        let swiftDataReport = try await runSwiftDataBenchmark(fixturePath: fixturePath, dataSize: dataSize)
         reports.append(swiftDataReport)
 
-        // UserDefaults
-        let userDefaultsReport = try await runUserDefaultsBenchmark(fixturePath: fixturePath)
-        reports.append(userDefaultsReport)
+        // UserDefaults (100k만 지원)
+        if dataSize == "100k" {
+            let userDefaultsReport = try await runUserDefaultsBenchmark(fixturePath: fixturePath, dataSize: dataSize)
+            reports.append(userDefaultsReport)
+        }
 
         return reports
     }
@@ -237,6 +229,12 @@ final class SearchOrchestrator {
     }
 
     // MARK: - Private Helpers
+
+    /// Fixtures 디렉토리 경로 반환
+    private func getFixturesDirectory() -> String {
+        let projectDir = FileManager.default.currentDirectoryPath
+        return "\(projectDir)/Sources/Fixtures"
+    }
 
     /// 비교 리포트 생성
     private func createComparisonReport(_ reports: [SearchBenchmarkReport]) -> SearchComparisonReport {
@@ -312,6 +310,19 @@ struct SearchBenchmarkReport: Codable, Sendable {
 
         let data = try encoder.encode(self)
         try data.write(to: fileURL)
+    }
+}
+
+// MARK: - Errors
+
+enum SearchOrchestratorError: Error, CustomStringConvertible {
+    case dbFileNotFound(path: String)
+
+    var description: String {
+        switch self {
+        case .dbFileNotFound(let path):
+            return "DB file not found: \(path). Please generate fixtures first."
+        }
     }
 }
 

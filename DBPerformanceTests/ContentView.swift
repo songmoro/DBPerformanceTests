@@ -7,6 +7,7 @@ struct ContentView: View {
     @State private var logMessages: [String] = []
     @State private var selectedDatabase: DatabaseType = .userDefaults
     @State private var selectedModel: ModelType = .simple
+    @State private var selectedDataSize: DataSize = .hundred_k
 
     enum DatabaseType: String, CaseIterable {
         case userDefaults = "UserDefaults"
@@ -19,6 +20,18 @@ struct ContentView: View {
         case simple = "Simple"
         case complex = "Complex"
         case search = "Search"
+    }
+
+    enum DataSize: String, CaseIterable {
+        case hundred_k = "100K"
+        case one_m = "1M"
+
+        var suffix: String {
+            switch self {
+            case .hundred_k: return "100k"
+            case .one_m: return "1m"
+            }
+        }
     }
 
     var body: some View {
@@ -43,6 +56,16 @@ struct ContentView: View {
                 }
                 .pickerStyle(.segmented)
                 .disabled(isRunning)
+
+                if selectedModel == .search {
+                    Picker("Data Size", selection: $selectedDataSize) {
+                        ForEach(DataSize.allCases, id: \.self) { size in
+                            Text(size.rawValue).tag(size)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    .disabled(isRunning)
+                }
             }
 
             HStack(spacing: 15) {
@@ -192,34 +215,34 @@ struct ContentView: View {
     // MARK: - Search Benchmarks
 
     private func runSearchBenchmark() async throws {
-        // Fixture 파일 경로 확인
-        let fixturePath = getFixturePath()
+        // DB 파일 존재 확인
+        let dbPath = getDBPath(for: selectedDatabase)
 
-        guard FileManager.default.fileExists(atPath: fixturePath) else {
-            log("ERROR: Fixture file not found at: \(fixturePath)")
-            log("Please generate fixture file first using FixtureGenerator")
-            throw SearchBenchmarkError.fixtureNotFound(path: fixturePath)
+        if !checkDBExists(for: selectedDatabase) {
+            log("ERROR: DB file not found for \(selectedDatabase.rawValue)")
+            log("Please generate fixtures first using 'Generate Fixtures' button")
+            throw SearchBenchmarkError.dbNotFound(database: selectedDatabase.rawValue)
         }
 
-        log("Using fixture: \(fixturePath)")
+        log("Using \(selectedDatabase.rawValue) DB: \(dbPath)")
 
         let orchestrator = SearchOrchestrator()
 
         switch selectedDatabase {
         case .realm:
-            let report = try await orchestrator.runRealmBenchmark(fixturePath: fixturePath)
+            let report = try await orchestrator.runRealmBenchmark(fixturePath: "")
             try saveAndLogSearchReport(report: report)
 
         case .coreData:
-            let report = try await orchestrator.runCoreDataBenchmark(fixturePath: fixturePath)
+            let report = try await orchestrator.runCoreDataBenchmark(fixturePath: "")
             try saveAndLogSearchReport(report: report)
 
         case .swiftData:
-            let report = try await orchestrator.runSwiftDataBenchmark(fixturePath: fixturePath)
+            let report = try await orchestrator.runSwiftDataBenchmark(fixturePath: "")
             try saveAndLogSearchReport(report: report)
 
         case .userDefaults:
-            let report = try await orchestrator.runUserDefaultsBenchmark(fixturePath: fixturePath)
+            let report = try await orchestrator.runUserDefaultsBenchmark(fixturePath: "")
             try saveAndLogSearchReport(report: report)
         }
     }
@@ -305,9 +328,48 @@ struct ContentView: View {
 
     // MARK: - Search Report Helpers
 
-    private func getFixturePath() -> String {
+    private func getFixturesDirectory() -> String {
         let projectDir = FileManager.default.currentDirectoryPath
-        return "\(projectDir)/Sources/Fixtures/flat-1m.json"
+        return "\(projectDir)/Sources/Fixtures"
+    }
+
+    private func getDBPath(for database: DatabaseType) -> String {
+        let fixturesDir = getFixturesDirectory()
+
+        switch database {
+        case .realm:
+            return "\(fixturesDir)/realm_100k.realm"
+        case .coreData:
+            let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+            return "\(appSupport.path)/CoreDataFixture.sqlite"
+        case .swiftData:
+            return "default.store (SwiftData default location)"
+        case .userDefaults:
+            return "com.dbperformance.fixture_100k (UserDefaults suite)"
+        }
+    }
+
+    private func checkDBExists(for database: DatabaseType) -> Bool {
+        switch database {
+        case .realm:
+            let fixturesDir = getFixturesDirectory()
+            let dbPath = "\(fixturesDir)/realm_100k.realm"
+            return FileManager.default.fileExists(atPath: dbPath)
+
+        case .coreData:
+            let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+            let dbPath = appSupport.appendingPathComponent("CoreDataFixture.sqlite")
+            return FileManager.default.fileExists(atPath: dbPath.path)
+
+        case .swiftData:
+            // SwiftData는 자동으로 생성되므로 항상 true
+            return true
+
+        case .userDefaults:
+            // UserDefaults 데이터 존재 확인
+            let defaults = UserDefaults(suiteName: "com.dbperformance.fixture_100k")
+            return defaults?.data(forKey: "flat_models_storage") != nil
+        }
     }
 
     private func saveAndLogSearchReport(report: SearchBenchmarkReport) throws {
@@ -337,12 +399,12 @@ struct ContentView: View {
 // MARK: - Search Benchmark Error
 
 enum SearchBenchmarkError: Error, CustomStringConvertible {
-    case fixtureNotFound(path: String)
+    case dbNotFound(database: String)
 
     var description: String {
         switch self {
-        case .fixtureNotFound(let path):
-            return "Fixture file not found at: \(path)"
+        case .dbNotFound(let database):
+            return "\(database) DB not found. Please generate fixtures first."
         }
     }
 }

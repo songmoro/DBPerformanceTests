@@ -18,8 +18,10 @@ struct SearchScenarios {
     /// Realm 검색 시나리오 실행
     func runRealm(searcher: RealmSearcher, indexed: Bool = true) async throws -> [SearchBenchmarkResult] {
         var results: [SearchBenchmarkResult] = []
+        let totalTests = 4
 
         // TM-08: Equality Search
+        print("[Progress] 25% - Running Equality Search...")
         let equalityResult = try benchmark.measure {
             try searcher.searchByName("Product_12345", indexed: indexed)
         }
@@ -31,6 +33,7 @@ struct SearchScenarios {
         ))
 
         // TM-09: Range Search
+        print("[Progress] 50% - Running Range Search...")
         let rangeResult = try benchmark.measure {
             try searcher.rangeSearch(priceMin: 1000, priceMax: 5000)
         }
@@ -42,6 +45,7 @@ struct SearchScenarios {
         ))
 
         // TM-10: Complex Condition Search
+        print("[Progress] 75% - Running Complex Search...")
         let complexResult = try benchmark.measure {
             try searcher.complexSearch(
                 category: "Electronics",
@@ -58,6 +62,7 @@ struct SearchScenarios {
         ))
 
         // TM-11: Full-Text Search
+        print("[Progress] 100% - Running Full-Text Search...")
         let fullTextResult = try benchmark.measure {
             try searcher.fullTextSearch("premium")
         }
@@ -78,6 +83,7 @@ struct SearchScenarios {
         var results: [SearchBenchmarkResult] = []
 
         // TM-08: Equality Search
+        print("[Progress] 25% - Running Equality Search...")
         let equalityResult = try benchmark.measure {
             try searcher.searchByName("Product_12345", indexed: indexed)
         }
@@ -89,6 +95,7 @@ struct SearchScenarios {
         ))
 
         // TM-09: Range Search
+        print("[Progress] 50% - Running Range Search...")
         let rangeResult = try benchmark.measure {
             try searcher.rangeSearch(priceMin: 1000, priceMax: 5000)
         }
@@ -100,6 +107,7 @@ struct SearchScenarios {
         ))
 
         // TM-10: Complex Condition Search
+        print("[Progress] 75% - Running Complex Search...")
         let complexResult = try benchmark.measure {
             try searcher.complexSearch(
                 category: "Electronics",
@@ -116,6 +124,7 @@ struct SearchScenarios {
         ))
 
         // TM-11: Full-Text Search
+        print("[Progress] 100% - Running Full-Text Search...")
         let fullTextResult = try benchmark.measure {
             try searcher.fullTextSearch("premium")
         }
@@ -136,6 +145,7 @@ struct SearchScenarios {
         var results: [SearchBenchmarkResult] = []
 
         // TM-08: Equality Search
+        print("[Progress] 25% - Running Equality Search...")
         let equalityResult = try benchmark.measure {
             try searcher.searchByName("Product_12345", indexed: indexed)
         }
@@ -147,6 +157,7 @@ struct SearchScenarios {
         ))
 
         // TM-09: Range Search
+        print("[Progress] 50% - Running Range Search...")
         let rangeResult = try benchmark.measure {
             try searcher.rangeSearch(priceMin: 1000, priceMax: 5000)
         }
@@ -158,6 +169,7 @@ struct SearchScenarios {
         ))
 
         // TM-10: Complex Condition Search
+        print("[Progress] 75% - Running Complex Search...")
         let complexResult = try benchmark.measure {
             try searcher.complexSearch(
                 category: "Electronics",
@@ -174,6 +186,7 @@ struct SearchScenarios {
         ))
 
         // TM-11: Full-Text Search
+        print("[Progress] 100% - Running Full-Text Search...")
         let fullTextResult = try benchmark.measure {
             try searcher.fullTextSearch("premium")
         }
@@ -194,6 +207,7 @@ struct SearchScenarios {
         var results: [SearchBenchmarkResult] = []
 
         // TM-08: Equality Search
+        print("[Progress] 25% - Running Equality Search...")
         let equalityResult = try benchmark.measure {
             try searcher.searchByName("Product_12345", indexed: indexed)
         }
@@ -205,6 +219,7 @@ struct SearchScenarios {
         ))
 
         // TM-09: Range Search
+        print("[Progress] 50% - Running Range Search...")
         let rangeResult = try benchmark.measure {
             try searcher.rangeSearch(priceMin: 1000, priceMax: 5000)
         }
@@ -216,6 +231,7 @@ struct SearchScenarios {
         ))
 
         // TM-10: Complex Condition Search
+        print("[Progress] 75% - Running Complex Search...")
         let complexResult = try benchmark.measure {
             try searcher.complexSearch(
                 category: "Electronics",
@@ -232,6 +248,7 @@ struct SearchScenarios {
         ))
 
         // TM-11: Full-Text Search
+        print("[Progress] 100% - Running Full-Text Search...")
         let fullTextResult = try benchmark.measure {
             try searcher.fullTextSearch("premium")
         }

@@ -38,8 +38,8 @@
 ## Fixture 파일 로딩
 
 [CR-21] Fixture 파일 위치: Sources/Fixtures/
-[CR-22] JSON 또는 CSV 포맷 지원
-[CR-23] 1M 레코드 일괄 로딩 메커니즘
+[CR-22] JSON 포맷 지원 및 각 DB별 파일 사전 생성
+[CR-23] 100K 레코드 일괄 로딩 메커니즘
 [CR-24] 메모리 효율성 고려한 스트리밍 로드 옵션
 [CR-25] 로딩 시간 측정 (파일 읽기 + 파싱 + DB 저장)
 
@@ -60,8 +60,8 @@
 [CR-34] FlatModel 필드 정의: id, name(Indexed), category(Indexed), price, date, description, isActive
 [CR-35] RelationalModel: ProductRecord + Tag 1:N 관계
 [CR-36] Zipf 분포 파라미터: name(s=1.3, k=100), category(s=1.5, k=50)
-[CR-37] Fixture 파일 위치: Sources/Fixtures/ (flat-1m.json, relational-1m.json)
-[CR-38] Fixture 로딩: 일괄 로드 (스트리밍 미지원)
+[CR-37] Fixture 파일 위치: Sources/Fixtures/ (flat-100k.json, realm_100k.realm, etc.)
+[CR-38] Fixture 로딩: 사전 생성된 DB 파일 사용 (검색 시 로딩 불필요)
 [CR-39] 인덱스 적용 필드: name, category만
 [CR-40] 구체 타입 사용: 프로토콜 제거, DB별 독립 Searcher 클래스
 [CR-41] 검색 결과 반환: SearchResult(results, count, responseTimeMs)

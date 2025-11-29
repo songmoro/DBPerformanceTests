@@ -148,7 +148,7 @@ final class RealmSearcher {
         }
 
         let results = realm.objects(RealmFlatModel.self)
-            .where { $0.description.contains(keyword, options: .caseInsensitive) }
+            .where { $0.descriptionText.contains(keyword, options: .caseInsensitive) }
             .freeze()
 
         let models = Array(results.map { $0.toFlatModel() })
