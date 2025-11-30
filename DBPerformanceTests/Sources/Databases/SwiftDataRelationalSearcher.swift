@@ -73,7 +73,7 @@ final class SwiftDataRelationalSearcher {
 
         let descriptor = FetchDescriptor<ProductRecordModel>(
             predicate: #Predicate { product in
-                product.tags.contains(tag)
+                product.tagsString.contains(tag)
             }
         )
 
@@ -92,7 +92,7 @@ final class SwiftDataRelationalSearcher {
             predicate: #Predicate { product in
                 product.price >= priceMin &&
                 product.price <= priceMax &&
-                product.tags.contains(tag)
+                product.tagsString.contains(tag)
             }
         )
 
@@ -119,7 +119,7 @@ final class SwiftDataRelationalSearcher {
                 product.price >= priceMin &&
                 product.price <= priceMax &&
                 product.date >= dateFrom &&
-                product.tags.contains(tag)
+                product.tagsString.contains(tag)
             }
         )
 
@@ -137,7 +137,7 @@ final class SwiftDataRelationalSearcher {
         let descriptor = FetchDescriptor<ProductRecordModel>(
             predicate: #Predicate { product in
                 product.descriptionText.contains(keyword) &&
-                product.tags.contains(tag)
+                product.tagsString.contains(tag)
             }
         )
 
@@ -158,7 +158,7 @@ final class SwiftDataRelationalSearcher {
         let allEntities = try context.fetch(descriptor)
 
         let filtered = allEntities.filter { product in
-            tags.allSatisfy { product.tags.contains($0) }
+            tags.allSatisfy { product.tagsString.contains($0) }
         }
 
         let models = filtered.map { $0.toProductRecord() }
@@ -186,9 +186,9 @@ final class ProductRecordModel {
     var date: Date
     var descriptionText: String
     var isActive: Bool
-    var tags: [String]
+    var tagsString: String // 쉼표로 구분된 문자열 저장
 
-    init(id: String, name: String, category: String, price: Int, date: Date, descriptionText: String, isActive: Bool, tags: [String]) {
+    init(id: String, name: String, category: String, price: Int, date: Date, descriptionText: String, isActive: Bool, tagsString: String) {
         self.id = id
         self.name = name
         self.category = category
@@ -196,7 +196,7 @@ final class ProductRecordModel {
         self.date = date
         self.descriptionText = descriptionText
         self.isActive = isActive
-        self.tags = tags
+        self.tagsString = tagsString
     }
 
     convenience init(from model: ProductRecord) {
@@ -208,7 +208,7 @@ final class ProductRecordModel {
             date: model.date,
             descriptionText: model.description,
             isActive: model.isActive,
-            tags: model.tags
+            tagsString: model.tags.joined(separator: ",")
         )
     }
 
@@ -221,7 +221,7 @@ final class ProductRecordModel {
             date: date,
             description: descriptionText,
             isActive: isActive,
-            tags: tags
+            tags: tagsString.split(separator: ",").map(String.init)
         )
     }
 }

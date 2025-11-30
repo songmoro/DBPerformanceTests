@@ -4,39 +4,59 @@
 //
 //  Fixture 생성 유틸리티
 //  JSON + 4개 DB 파일 생성
+//  [CR-74] FixtureGenerationConfig enum 기반 생성 권장
 //
 
 import Foundation
 
+// MARK: - Helper Functions
+
+/// 숫자를 천 단위 구분자로 포맷팅 (로케일 독립적)
+private func formatNumber(_ number: Int) -> String {
+    let formatter = NumberFormatter()
+    formatter.numberStyle = .decimal
+    formatter.groupingSeparator = ","
+    formatter.locale = Locale(identifier: "en_US")
+    return formatter.string(from: NSNumber(value: number)) ?? "\(number)"
+}
+
 /// Fixture 생성 실행 함수 (100K 데이터)
 /// - JSON 파일 생성
 /// - Realm, CoreData, SwiftData, UserDefaults DB 파일 생성
+/// - **권장**: `FixtureGenerationConfig.flat100k` 사용
 @MainActor
 func generateFixtures() async {
+    // FixtureGenerationConfig.flat100k와 동일
     await generateFixturesWithCount(100_000, suffix: "100k")
 }
 
 /// Fixture 생성 실행 함수 (1M 데이터)
 /// - JSON 파일 생성
 /// - Realm, CoreData, SwiftData DB 파일 생성 (UserDefaults 제외)
+/// - **권장**: `FixtureGenerationConfig.flat1m` 사용
 @MainActor
 func generateFixtures1M() async {
+    // FixtureGenerationConfig.flat1m과 동일
     await generateFixturesWithCount(1_000_000, suffix: "1m")
 }
 
 /// Relational Fixture 생성 실행 함수 (100K 데이터)
 /// - ProductRecord + Tags 1:N 관계
 /// - Realm, CoreData, SwiftData DB 파일 생성
+/// - **권장**: `FixtureGenerationConfig.relational100k` 사용
 @MainActor
 func generateRelationalFixtures() async {
+    // FixtureGenerationConfig.relational100k와 동일
     await generateRelationalFixturesWithCount(100_000, suffix: "100k")
 }
 
 /// Relational Fixture 생성 실행 함수 (1M 데이터)
 /// - ProductRecord + Tags 1:N 관계
 /// - Realm, CoreData, SwiftData DB 파일 생성
+/// - **권장**: `FixtureGenerationConfig.relational1m` 사용
 @MainActor
 func generateRelationalFixtures1M() async {
+    // FixtureGenerationConfig.relational1m과 동일
     await generateRelationalFixturesWithCount(1_000_000, suffix: "1m")
 }
 
@@ -58,7 +78,7 @@ private func generateFixturesWithCount(_ count: Int, suffix: String) async {
     }
 
     let flatJsonPath = "\(fixturesPath)/flat-\(suffix).json"
-    let countFormatted = String(format: "%,d", count)
+    let countFormatted = formatNumber(count)
 
     // Step 1: JSON Fixture 생성
     print("\n=== Step 1/5: Generating JSON Fixture (\(countFormatted) records) ===")
@@ -142,7 +162,7 @@ private func generateRealmDB(jsonPath: String, fixturesPath: String, suffix: Str
 
     // 레코드 수 계산
     let models = try await FixtureLoader.loadFlat(from: jsonPath)
-    let countFormatted = String(format: "%,d", models.count)
+    let countFormatted = formatNumber(models.count)
 
     print("   Records loaded: \(countFormatted)")
     print("   Loading time: \(duration)")
@@ -160,7 +180,7 @@ private func generateCoreDataDB(jsonPath: String, fixturesPath: String, suffix: 
 
     // 레코드 수 계산
     let models = try await FixtureLoader.loadFlat(from: jsonPath)
-    let countFormatted = String(format: "%,d", models.count)
+    let countFormatted = formatNumber(models.count)
 
     print("   Records loaded: \(countFormatted)")
     print("   Loading time: \(duration)")
@@ -180,7 +200,7 @@ private func generateSwiftDataDB(jsonPath: String, fixturesPath: String, suffix:
 
     // 레코드 수 계산
     let models = try await FixtureLoader.loadFlat(from: jsonPath)
-    let countFormatted = String(format: "%,d", models.count)
+    let countFormatted = formatNumber(models.count)
 
     print("   Records loaded: \(countFormatted)")
     print("   Loading time: \(duration)")
@@ -197,7 +217,7 @@ private func generateUserDefaultsDB(jsonPath: String, suffix: String) async thro
 
     // 레코드 수 계산
     let models = try await FixtureLoader.loadFlat(from: jsonPath)
-    let countFormatted = String(format: "%,d", models.count)
+    let countFormatted = formatNumber(models.count)
 
     print("   Records loaded: \(countFormatted)")
     print("   Loading time: \(duration)")
@@ -224,7 +244,7 @@ private func generateRelationalFixturesWithCount(_ count: Int, suffix: String) a
     }
 
     let relationalJsonPath = "\(fixturesPath)/relational-\(suffix).json"
-    let countFormatted = String(format: "%,d", count)
+    let countFormatted = formatNumber(count)
 
     // Step 1: JSON Fixture 생성
     print("\n=== Step 1/4: Generating Relational JSON Fixture (\(countFormatted) records) ===")
@@ -289,7 +309,7 @@ private func generateRealmRelationalDB(jsonPath: String, fixturesPath: String, s
     let duration = try await searcher.loadFromFixture(path: jsonPath)
 
     let models = try await RelationalFixtureLoader.loadRelational(from: jsonPath)
-    let countFormatted = String(format: "%,d", models.count)
+    let countFormatted = formatNumber(models.count)
 
     print("   Records loaded: \(countFormatted)")
     print("   Loading time: \(duration)")
@@ -306,7 +326,7 @@ private func generateCoreDataRelationalDB(jsonPath: String, fixturesPath: String
     let duration = try await searcher.loadFromFixture(path: jsonPath)
 
     let models = try await RelationalFixtureLoader.loadRelational(from: jsonPath)
-    let countFormatted = String(format: "%,d", models.count)
+    let countFormatted = formatNumber(models.count)
 
     print("   Records loaded: \(countFormatted)")
     print("   Loading time: \(duration)")
@@ -324,7 +344,7 @@ private func generateSwiftDataRelationalDB(jsonPath: String, fixturesPath: Strin
     let duration = try await searcher.loadFromFixture(path: jsonPath)
 
     let models = try await RelationalFixtureLoader.loadRelational(from: jsonPath)
-    let countFormatted = String(format: "%,d", models.count)
+    let countFormatted = formatNumber(models.count)
 
     print("   Records loaded: \(countFormatted)")
     print("   Loading time: \(duration)")

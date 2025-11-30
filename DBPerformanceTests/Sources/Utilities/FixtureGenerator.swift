@@ -5,6 +5,7 @@
 //  1M 레코드 Fixture 생성기
 //  [TM-30] Fixture 파일 포맷: JSON (메타데이터 + 레코드 배열)
 //  [TM-32] description 길이 분포: 50-200자(30%), 200-500자(40%), 500-2000자(30%)
+//  [CR-74] DatasetConstants를 참조하여 일관성 보장
 //
 
 import Foundation
@@ -17,7 +18,7 @@ struct FixtureGenerator {
     private let seed: UInt64
     private var random: SeededRandomGenerator
 
-    init(seed: UInt64 = 42) {
+    init(seed: UInt64 = DatasetConstants.defaultSeed) {
         self.seed = seed
         self.random = SeededRandomGenerator(seed: seed)
     }
@@ -33,8 +34,10 @@ struct FixtureGenerator {
 
         let nameGen = ZipfianGenerator.nameGenerator
         let categoryGen = ZipfianGenerator.categoryGenerator
-        let startDate = Date(timeIntervalSince1970: 1672531200) // 2023-01-01
-        let endDate = Date(timeIntervalSince1970: 1735689600)   // 2024-12-31
+
+        // DatasetConstants에서 날짜 범위 참조
+        let startDate = DatasetConstants.dateRange.start
+        let endDate = DatasetConstants.dateRange.end
         let dateRange = endDate.timeIntervalSince1970 - startDate.timeIntervalSince1970
 
         for i in 0..<count {
@@ -44,8 +47,8 @@ struct FixtureGenerator {
             let name = nameGen.generate(from: ValueGenerators.productNames, random: random.next())
             let category = categoryGen.generate(from: ValueGenerators.categories, random: random.next())
 
-            // 균등 분포로 price 생성
-            let price = random.nextInt(in: 100..<50001)
+            // 균등 분포로 price 생성 (DatasetConstants에서 범위 참조)
+            let price = random.nextInt(in: DatasetConstants.priceRange.min..<DatasetConstants.priceRange.max)
 
             // 균등 분포로 date 생성
             let randomDate = startDate.addingTimeInterval(random.next() * dateRange)
@@ -53,8 +56,8 @@ struct FixtureGenerator {
             // 혼합 길이로 description 생성
             let description = generateDescription()
 
-            // 70% true, 30% false
-            let isActive = random.nextBool(probability: 0.7)
+            // isActive 생성 (DatasetConstants에서 확률 참조)
+            let isActive = random.nextBool(probability: DatasetConstants.isActiveProbability)
 
             let model = FlatModel(
                 id: id,

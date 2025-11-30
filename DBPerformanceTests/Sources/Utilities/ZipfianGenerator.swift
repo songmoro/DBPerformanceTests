@@ -200,3 +200,111 @@ struct ValueGenerators {
         return tags
     }()
 }
+
+// MARK: - Test Helper Extension
+
+extension ValueGenerators {
+
+    // MARK: - Most Frequent Values
+
+    /// Get the most frequent product name (Zipf rank 1)
+    /// Zipf 분포에서 가장 높은 빈도로 나타나는 상품명
+    /// - Returns: "Product-AA" (rank 1, ~1.5% of 1M records)
+    static var mostFrequentName: String {
+        productNames[0]
+    }
+
+    /// Get the most frequent category (Zipf rank 1)
+    /// Zipf 분포에서 가장 높은 빈도로 나타나는 카테고리
+    /// - Returns: "Electronics" (rank 1, ~4% of 1M records)
+    static var mostFrequentCategory: String {
+        categories[0]
+    }
+
+    // MARK: - Access by Rank
+
+    /// Get a specific name by Zipf rank
+    /// - Parameter rank: Zipf 순위 (0-based, 0이 가장 빈번)
+    /// - Returns: 해당 순위의 상품명
+    static func nameByRank(_ rank: Int) -> String {
+        guard rank >= 0 && rank < productNames.count else {
+            return productNames[0]
+        }
+        return productNames[rank]
+    }
+
+    /// Get a specific category by Zipf rank
+    /// - Parameter rank: Zipf 순위 (0-based, 0이 가장 빈번)
+    /// - Returns: 해당 순위의 카테고리
+    static func categoryByRank(_ rank: Int) -> String {
+        guard rank >= 0 && rank < categories.count else {
+            return categories[0]
+        }
+        return categories[rank]
+    }
+
+    /// Get a specific tag by index
+    /// - Parameter index: Tag index (0-based)
+    /// - Returns: 해당 인덱스의 태그명
+    static func tagByIndex(_ index: Int) -> String {
+        guard index >= 0 && index < tagNames.count else {
+            return tagNames[0]
+        }
+        return tagNames[index]
+    }
+
+    // MARK: - Expected Frequency Calculations
+
+    /// Get expected frequency for a name at given rank
+    /// Zipf 분포를 기반으로 특정 순위의 상품명이 나타날 예상 빈도
+    /// - Parameters:
+    ///   - rank: Zipf 순위 (0-based)
+    ///   - totalRecords: 전체 레코드 수 (기본값: 1,000,000)
+    /// - Returns: 예상 출현 횟수
+    static func expectedFrequency(forNameRank rank: Int, totalRecords: Int = 1_000_000) -> Int {
+        let generator = ZipfianGenerator.nameGenerator
+        let frequencies = generator.expectedFrequencies(totalCount: totalRecords)
+        guard rank >= 0 && rank < frequencies.count else {
+            return 0
+        }
+        return frequencies[rank]
+    }
+
+    /// Get expected frequency for a category at given rank
+    /// Zipf 분포를 기반으로 특정 순위의 카테고리가 나타날 예상 빈도
+    /// - Parameters:
+    ///   - rank: Zipf 순위 (0-based)
+    ///   - totalRecords: 전체 레코드 수 (기본값: 1,000,000)
+    /// - Returns: 예상 출현 횟수
+    static func expectedFrequency(forCategoryRank rank: Int, totalRecords: Int = 1_000_000) -> Int {
+        let generator = ZipfianGenerator.categoryGenerator
+        let frequencies = generator.expectedFrequencies(totalCount: totalRecords)
+        guard rank >= 0 && rank < frequencies.count else {
+            return 0
+        }
+        return frequencies[rank]
+    }
+
+    // MARK: - Validation Helpers
+
+    /// Check if a name exists in the generated pool
+    /// - Parameter name: 확인할 상품명
+    /// - Returns: 존재 여부
+    static func isValidName(_ name: String) -> Bool {
+        productNames.contains(name)
+    }
+
+    /// Check if a category exists in the generated pool
+    /// - Parameter category: 확인할 카테고리
+    /// - Returns: 존재 여부
+    static func isValidCategory(_ category: String) -> Bool {
+        categories.contains(category)
+    }
+
+    /// Check if a tag exists in the generated pool
+    /// - Parameter tag: 확인할 태그
+    /// - Returns: 존재 여부
+    static func isValidTag(_ tag: String) -> Bool {
+        tagNames.contains(tag)
+    }
+}
