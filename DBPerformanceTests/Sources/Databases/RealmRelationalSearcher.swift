@@ -1,23 +1,23 @@
 //
-//  RealmSearcher.swift
+//  RealmRelationalSearcher.swift
 //  DBPerformanceTests
 //
-//  Realm 데이터베이스 검색 구현
+//  Realm 관계형 검색 구현 (1:N - ProductRecord + Tags)
 //  [CR-40] 구체 타입 사용: 프로토콜 제거, DB별 독립 Searcher 클래스
 //
 
 import Foundation
 @preconcurrency import RealmSwift
 
-/// Realm 검색 구현 클래스
-/// - 프로토콜 없이 구체 타입으로 구현
-/// - 4가지 검색 시나리오 지원
+/// Realm 관계형 검색 구현 클래스
+/// - ProductRecord와 Tag 1:N 관계
+/// - 5가지 관계형 검색 시나리오 지원
 @MainActor
-final class RealmSearcher {
+final class RealmRelationalSearcher {
     private var realm: Realm?
     private let dbPath: String
 
-    init(dbPath: String = "search_test.realm") {
+    init(dbPath: String = "relational_search_test.realm") {
         self.dbPath = dbPath
     }
 
@@ -34,35 +34,27 @@ final class RealmSearcher {
     }
 
     /// Fixture에서 데이터 로드
-    /// [TM-34] 로딩 성능 측정: 파일 읽기 + 파싱 + DB 저장 총 시간(ms)
-    /// - Parameter path: Fixture 파일 경로
-    /// - Returns: 로딩 시간 (Duration)
     func loadFromFixture(path: String) async throws -> Duration {
-        // Fixture 로드
-        let models = try await FixtureLoader.loadFlat(from: path)
+        let models = try await RelationalFixtureLoader.loadRelational(from: path)
 
-        // 시간 측정
         let clock = ContinuousClock()
         let duration = try clock.measure {
             guard let realm = self.realm else {
-                throw RealmSearcherError.notInitialized
+                throw RealmRelationalSearcherError.notInitialized
             }
 
             try realm.write {
-                // 기존 데이터 삭제
                 realm.deleteAll()
 
-                // 배치 저장
                 for model in models {
-                    realm.add(RealmFlatModel(from: model))
+                    realm.add(RealmProductRecord(from: model))
                 }
             }
         }
 
-        // [TM-35] 로딩 후 데이터 검증
-        let count = realm?.objects(RealmFlatModel.self).count ?? 0
+        let count = realm?.objects(RealmProductRecord.self).count ?? 0
         guard count == models.count else {
-            throw RealmSearcherError.dataVerificationFailed(
+            throw RealmRelationalSearcherError.dataVerificationFailed(
                 expected: models.count,
                 actual: count
             )
@@ -73,103 +65,119 @@ final class RealmSearcher {
 
     // MARK: - Search Methods
 
-    /// TM-08: Equality Search (단순 필드 검색)
+    /// Relational-01: Tag Equality Search (특정 태그 검색)
     /// - Parameters:
-    ///   - name: 검색할 상품명
-    ///   - indexed: 인덱스 사용 여부 (Realm은 자동 최적화)
+    ///   - tag: 검색할 태그명
+    ///   - indexed: 인덱스 사용 여부
     /// - Returns: 검색 결과
-    func searchByName(_ name: String, indexed: Bool = true) throws -> SearchResult<FlatModel> {
+    func searchByTag(_ tag: String, indexed: Bool = true) throws -> SearchResult<ProductRecord> {
         guard let realm = self.realm else {
-            throw RealmSearcherError.notInitialized
+            throw RealmRelationalSearcherError.notInitialized
         }
 
-        let results = realm.objects(RealmFlatModel.self)
-            .where { $0.name == name }
+        let results = realm.objects(RealmProductRecord.self)
+            .where { $0.tags.contains(tag) }
             .freeze()
 
-        let models = Array(results.map { $0.toFlatModel() })
+        let models = Array(results.map { $0.toProductRecord() })
         return SearchResult(results: models, count: models.count)
     }
 
-    /// TM-09: Range Search (범위 검색)
+    /// Relational-02: Range + Tag Search (가격 범위 + 태그)
     /// - Parameters:
     ///   - priceMin: 최소 가격
     ///   - priceMax: 최대 가격
+    ///   - tag: 필터링할 태그
     /// - Returns: 검색 결과
-    func rangeSearch(priceMin: Int, priceMax: Int) throws -> SearchResult<FlatModel> {
+    func rangeWithTagSearch(priceMin: Int, priceMax: Int, tag: String) throws -> SearchResult<ProductRecord> {
         guard let realm = self.realm else {
-            throw RealmSearcherError.notInitialized
+            throw RealmRelationalSearcherError.notInitialized
         }
 
-        let results = realm.objects(RealmFlatModel.self)
-            .where { $0.price >= priceMin && $0.price <= priceMax }
+        let results = realm.objects(RealmProductRecord.self)
+            .where {
+                $0.price >= priceMin &&
+                $0.price <= priceMax &&
+                $0.tags.contains(tag)
+            }
             .freeze()
 
-        let models = Array(results.map { $0.toFlatModel() })
+        let models = Array(results.map { $0.toProductRecord() })
         return SearchResult(results: models, count: models.count)
     }
 
-    /// TM-10: Complex Condition Search (복합 조건 검색)
+    /// Relational-03: Complex + Tag Search (복합 조건 + 태그)
     /// - Parameters:
     ///   - category: 카테고리
     ///   - priceMin: 최소 가격
     ///   - priceMax: 최대 가격
     ///   - dateFrom: 시작 날짜
+    ///   - tag: 필터링할 태그
     /// - Returns: 검색 결과
-    func complexSearch(
+    func complexWithTagSearch(
         category: String,
         priceMin: Int,
         priceMax: Int,
-        dateFrom: Date
-    ) throws -> SearchResult<FlatModel> {
+        dateFrom: Date,
+        tag: String
+    ) throws -> SearchResult<ProductRecord> {
         guard let realm = self.realm else {
-            throw RealmSearcherError.notInitialized
+            throw RealmRelationalSearcherError.notInitialized
         }
 
-        let results = realm.objects(RealmFlatModel.self)
+        let results = realm.objects(RealmProductRecord.self)
             .where {
                 $0.category == category &&
                 $0.price >= priceMin &&
                 $0.price <= priceMax &&
-                $0.date >= dateFrom
+                $0.date >= dateFrom &&
+                $0.tags.contains(tag)
             }
             .freeze()
 
-        let models = Array(results.map { $0.toFlatModel() })
+        let models = Array(results.map { $0.toProductRecord() })
         return SearchResult(results: models, count: models.count)
     }
 
-    /// TM-11: Full-Text Search (전문 검색)
-    /// - Parameter keyword: 검색 키워드
-    /// - Returns: 검색 결과
-    func fullTextSearch(_ keyword: String) throws -> SearchResult<FlatModel> {
-        guard let realm = self.realm else {
-            throw RealmSearcherError.notInitialized
-        }
-
-        let results = realm.objects(RealmFlatModel.self)
-            .where { $0.descriptionText.contains(keyword, options: .caseInsensitive) }
-            .freeze()
-
-        let models = Array(results.map { $0.toFlatModel() })
-        return SearchResult(results: models, count: models.count)
-    }
-
-    /// 카테고리 검색 (인덱스 효과 측정용)
+    /// Relational-04: Full-Text + Tag Search (전문 검색 + 태그)
     /// - Parameters:
-    ///   - category: 카테고리
-    ///   - indexed: 인덱스 사용 여부
+    ///   - keyword: 검색 키워드
+    ///   - tag: 필터링할 태그
     /// - Returns: 검색 결과
-    func searchByCategory(_ category: String, indexed: Bool = true) throws -> SearchResult<FlatModel> {
+    func fullTextWithTagSearch(keyword: String, tag: String) throws -> SearchResult<ProductRecord> {
         guard let realm = self.realm else {
-            throw RealmSearcherError.notInitialized
+            throw RealmRelationalSearcherError.notInitialized
         }
 
-        let results = realm.objects(RealmFlatModel.self)
-            .where { $0.category == category }
+        let results = realm.objects(RealmProductRecord.self)
+            .where {
+                $0.descriptionText.contains(keyword, options: .caseInsensitive) &&
+                $0.tags.contains(tag)
+            }
             .freeze()
 
-        let models = Array(results.map { $0.toFlatModel() })
+        let models = Array(results.map { $0.toProductRecord() })
+        return SearchResult(results: models, count: models.count)
+    }
+
+    /// Relational-05: Multiple Tags Search (다중 태그 AND)
+    /// - Parameters:
+    ///   - tags: 검색할 태그 배열 (모두 포함되어야 함)
+    /// - Returns: 검색 결과
+    func searchByMultipleTags(_ tags: [String]) throws -> SearchResult<ProductRecord> {
+        guard let realm = self.realm else {
+            throw RealmRelationalSearcherError.notInitialized
+        }
+
+        var results = realm.objects(RealmProductRecord.self)
+
+        // 모든 태그를 포함하는 레코드만 필터링
+        for tag in tags {
+            results = results.where { $0.tags.contains(tag) }
+        }
+
+        let frozenResults = results.freeze()
+        let models = Array(frozenResults.map { $0.toProductRecord() })
         return SearchResult(results: models, count: models.count)
     }
 
@@ -193,7 +201,6 @@ final class RealmSearcher {
             try FileManager.default.removeItem(at: fileURL)
         }
 
-        // .lock 및 .management 파일도 삭제
         let lockPath = dbPath + ".lock"
         let managementPath = dbPath + ".management"
 
@@ -208,8 +215,8 @@ final class RealmSearcher {
 
 // MARK: - Realm Model
 
-/// Realm용 FlatModel 래퍼
-final class RealmFlatModel: Object {
+/// Realm용 ProductRecord 래퍼
+final class RealmProductRecord: Object {
     @Persisted(primaryKey: true) var id: String
     @Persisted(indexed: true) var name: String
     @Persisted(indexed: true) var category: String
@@ -217,8 +224,9 @@ final class RealmFlatModel: Object {
     @Persisted var date: Date
     @Persisted var descriptionText: String
     @Persisted var isActive: Bool
+    @Persisted var tags: List<String>
 
-    convenience init(from model: FlatModel) {
+    convenience init(from model: ProductRecord) {
         self.init()
         self.id = model.id
         self.name = model.name
@@ -227,24 +235,29 @@ final class RealmFlatModel: Object {
         self.date = model.date
         self.descriptionText = model.description
         self.isActive = model.isActive
+
+        let tagList = List<String>()
+        model.tags.forEach { tagList.append($0) }
+        self.tags = tagList
     }
 
-    func toFlatModel() -> FlatModel {
-        FlatModel(
+    func toProductRecord() -> ProductRecord {
+        ProductRecord(
             id: id,
             name: name,
             category: category,
             price: price,
             date: date,
             description: descriptionText,
-            isActive: isActive
+            isActive: isActive,
+            tags: Array(tags)
         )
     }
 }
 
 // MARK: - Errors
 
-enum RealmSearcherError: Error, CustomStringConvertible {
+enum RealmRelationalSearcherError: Error, CustomStringConvertible {
     case notInitialized
     case dataVerificationFailed(expected: Int, actual: Int)
 

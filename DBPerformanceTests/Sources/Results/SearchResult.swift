@@ -8,10 +8,10 @@
 
 import Foundation
 
-/// 검색 결과
-struct SearchResult: Sendable {
+/// 검색 결과 (제네릭)
+struct SearchResult<T: Sendable>: Sendable {
     /// 검색된 레코드 배열
-    let results: [FlatModel]
+    let results: [T]
 
     /// 결과 개수
     let count: Int
@@ -19,7 +19,7 @@ struct SearchResult: Sendable {
     /// 응답 시간 (밀리초)
     let responseTimeMs: Double?
 
-    init(results: [FlatModel], count: Int, responseTimeMs: Double? = nil) {
+    init(results: [T], count: Int, responseTimeMs: Double? = nil) {
         self.results = results
         self.count = count
         self.responseTimeMs = responseTimeMs

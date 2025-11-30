@@ -20,6 +20,7 @@ struct ContentView: View {
         case simple = "Simple"
         case complex = "Complex"
         case search = "Search"
+        case searchRelational = "Search-Relational"
     }
 
     enum DataSize: String, CaseIterable {
@@ -57,7 +58,7 @@ struct ContentView: View {
                 .pickerStyle(.segmented)
                 .disabled(isRunning)
 
-                if selectedModel == .search {
+                if selectedModel == .search || selectedModel == .searchRelational {
                     Picker("Data Size", selection: $selectedDataSize) {
                         ForEach(DataSize.allCases, id: \.self) { size in
                             Text(size.rawValue).tag(size)
@@ -85,7 +86,7 @@ struct ContentView: View {
                 .disabled(isRunning)
                 .buttonStyle(.bordered)
 
-                if selectedModel == .search {
+                if selectedModel == .search || selectedModel == .searchRelational {
                     Button("Generate Fixtures") {
                         Task {
                             await generateFixturesUI()
@@ -142,6 +143,8 @@ struct ContentView: View {
                 try await runComplexModelBenchmark()
             case .search:
                 try await runSearchBenchmark()
+            case .searchRelational:
+                try await runRelationalSearchBenchmark()
             }
 
             log("=== Benchmark completed successfully ===\n")
@@ -203,10 +206,25 @@ struct ContentView: View {
 
         isRunning = true
         currentDatabase = "Fixture Generator"
-        log("=== Generating Fixture Files ===")
+        log("=== Generating Fixture Files (\(selectedDataSize.rawValue)) ===")
         log("This may take several minutes...")
 
-        await generateFixtures()
+        // 모델 타입과 데이터 크기에 따라 다른 함수 호출
+        if selectedModel == .searchRelational {
+            switch selectedDataSize {
+            case .hundred_k:
+                await generateRelationalFixtures()
+            case .one_m:
+                await generateRelationalFixtures1M()
+            }
+        } else {
+            switch selectedDataSize {
+            case .hundred_k:
+                await generateFixtures()
+            case .one_m:
+                await generateFixtures1M()
+            }
+        }
 
         isRunning = false
         currentDatabase = ""
@@ -216,34 +234,77 @@ struct ContentView: View {
 
     private func runSearchBenchmark() async throws {
         // DB 파일 존재 확인
-        let dbPath = getDBPath(for: selectedDatabase)
+        let dbPath = getDBPath(for: selectedDatabase, dataSize: selectedDataSize)
 
-        if !checkDBExists(for: selectedDatabase) {
-            log("ERROR: DB file not found for \(selectedDatabase.rawValue)")
+        if !checkDBExists(for: selectedDatabase, dataSize: selectedDataSize) {
+            log("ERROR: DB file not found for \(selectedDatabase.rawValue) [\(selectedDataSize.rawValue)]")
             log("Please generate fixtures first using 'Generate Fixtures' button")
             throw SearchBenchmarkError.dbNotFound(database: selectedDatabase.rawValue)
         }
 
-        log("Using \(selectedDatabase.rawValue) DB: \(dbPath)")
+        log("Using \(selectedDatabase.rawValue) DB [\(selectedDataSize.rawValue)]: \(dbPath)")
 
         let orchestrator = SearchOrchestrator()
+        let dataSizeSuffix = selectedDataSize.suffix
 
         switch selectedDatabase {
         case .realm:
-            let report = try await orchestrator.runRealmBenchmark(fixturePath: "")
+            let report = try await orchestrator.runRealmBenchmark(fixturePath: "", dataSize: dataSizeSuffix)
             try saveAndLogSearchReport(report: report)
 
         case .coreData:
-            let report = try await orchestrator.runCoreDataBenchmark(fixturePath: "")
+            let report = try await orchestrator.runCoreDataBenchmark(fixturePath: "", dataSize: dataSizeSuffix)
             try saveAndLogSearchReport(report: report)
 
         case .swiftData:
-            let report = try await orchestrator.runSwiftDataBenchmark(fixturePath: "")
+            let report = try await orchestrator.runSwiftDataBenchmark(fixturePath: "", dataSize: dataSizeSuffix)
             try saveAndLogSearchReport(report: report)
 
         case .userDefaults:
-            let report = try await orchestrator.runUserDefaultsBenchmark(fixturePath: "")
+            // UserDefaults는 100k만 지원
+            if selectedDataSize == .one_m {
+                log("WARNING: UserDefaults does not support 1M dataset. Skipping.")
+                throw SearchBenchmarkError.unsupportedDataSize(database: selectedDatabase.rawValue, size: selectedDataSize.rawValue)
+            }
+            let report = try await orchestrator.runUserDefaultsBenchmark(fixturePath: "", dataSize: dataSizeSuffix)
             try saveAndLogSearchReport(report: report)
+        }
+    }
+
+    // MARK: - Relational Search Benchmarks
+
+    private func runRelationalSearchBenchmark() async throws {
+        // DB 파일 존재 확인
+        let dbPath = getRelationalDBPath(for: selectedDatabase, dataSize: selectedDataSize)
+
+        if !checkRelationalDBExists(for: selectedDatabase, dataSize: selectedDataSize) {
+            log("ERROR: Relational DB file not found for \(selectedDatabase.rawValue) [\(selectedDataSize.rawValue)]")
+            log("Please generate relational fixtures first using 'Generate Fixtures' button")
+            throw SearchBenchmarkError.dbNotFound(database: selectedDatabase.rawValue)
+        }
+
+        log("Using \(selectedDatabase.rawValue) Relational DB [\(selectedDataSize.rawValue)]: \(dbPath)")
+
+        let orchestrator = SearchOrchestrator()
+        let dataSizeSuffix = selectedDataSize.suffix
+
+        switch selectedDatabase {
+        case .realm:
+            let report = try await orchestrator.runRealmRelationalBenchmark(fixturePath: "", dataSize: dataSizeSuffix)
+            try saveAndLogSearchReport(report: report)
+
+        case .coreData:
+            let report = try await orchestrator.runCoreDataRelationalBenchmark(fixturePath: "", dataSize: dataSizeSuffix)
+            try saveAndLogSearchReport(report: report)
+
+        case .swiftData:
+            let report = try await orchestrator.runSwiftDataRelationalBenchmark(fixturePath: "", dataSize: dataSizeSuffix)
+            try saveAndLogSearchReport(report: report)
+
+        case .userDefaults:
+            // UserDefaults는 관계형 검색 미지원
+            log("WARNING: UserDefaults does not support relational search. Skipping.")
+            throw SearchBenchmarkError.unsupportedDataSize(database: selectedDatabase.rawValue, size: "Relational")
         }
     }
 
@@ -333,32 +394,35 @@ struct ContentView: View {
         return "\(projectDir)/Sources/Fixtures"
     }
 
-    private func getDBPath(for database: DatabaseType) -> String {
+    private func getDBPath(for database: DatabaseType, dataSize: DataSize) -> String {
         let fixturesDir = getFixturesDirectory()
+        let suffix = dataSize.suffix
 
         switch database {
         case .realm:
-            return "\(fixturesDir)/realm_100k.realm"
+            return "\(fixturesDir)/realm_\(suffix).realm"
         case .coreData:
             let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-            return "\(appSupport.path)/CoreDataFixture.sqlite"
+            return "\(appSupport.path)/CoreDataFixture_\(suffix).sqlite"
         case .swiftData:
             return "default.store (SwiftData default location)"
         case .userDefaults:
-            return "com.dbperformance.fixture_100k (UserDefaults suite)"
+            return "com.dbperformance.fixture_\(suffix) (UserDefaults suite)"
         }
     }
 
-    private func checkDBExists(for database: DatabaseType) -> Bool {
+    private func checkDBExists(for database: DatabaseType, dataSize: DataSize) -> Bool {
+        let suffix = dataSize.suffix
+
         switch database {
         case .realm:
             let fixturesDir = getFixturesDirectory()
-            let dbPath = "\(fixturesDir)/realm_100k.realm"
+            let dbPath = "\(fixturesDir)/realm_\(suffix).realm"
             return FileManager.default.fileExists(atPath: dbPath)
 
         case .coreData:
             let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-            let dbPath = appSupport.appendingPathComponent("CoreDataFixture.sqlite")
+            let dbPath = appSupport.appendingPathComponent("CoreDataFixture_\(suffix).sqlite")
             return FileManager.default.fileExists(atPath: dbPath.path)
 
         case .swiftData:
@@ -367,8 +431,49 @@ struct ContentView: View {
 
         case .userDefaults:
             // UserDefaults 데이터 존재 확인
-            let defaults = UserDefaults(suiteName: "com.dbperformance.fixture_100k")
+            let defaults = UserDefaults(suiteName: "com.dbperformance.fixture_\(suffix)")
             return defaults?.data(forKey: "flat_models_storage") != nil
+        }
+    }
+
+    private func getRelationalDBPath(for database: DatabaseType, dataSize: DataSize) -> String {
+        let fixturesDir = getFixturesDirectory()
+        let suffix = dataSize.suffix
+
+        switch database {
+        case .realm:
+            return "\(fixturesDir)/realm_relational_\(suffix).realm"
+        case .coreData:
+            let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+            return "\(appSupport.path)/CoreDataRelationalFixture_\(suffix).sqlite"
+        case .swiftData:
+            return "default.store (SwiftData default location)"
+        case .userDefaults:
+            return "N/A (UserDefaults does not support relational)"
+        }
+    }
+
+    private func checkRelationalDBExists(for database: DatabaseType, dataSize: DataSize) -> Bool {
+        let suffix = dataSize.suffix
+
+        switch database {
+        case .realm:
+            let fixturesDir = getFixturesDirectory()
+            let dbPath = "\(fixturesDir)/realm_relational_\(suffix).realm"
+            return FileManager.default.fileExists(atPath: dbPath)
+
+        case .coreData:
+            let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+            let dbPath = appSupport.appendingPathComponent("CoreDataRelationalFixture_\(suffix).sqlite")
+            return FileManager.default.fileExists(atPath: dbPath.path)
+
+        case .swiftData:
+            // SwiftData는 자동으로 생성되므로 항상 true
+            return true
+
+        case .userDefaults:
+            // UserDefaults는 관계형 검색 미지원
+            return false
         }
     }
 
@@ -400,11 +505,14 @@ struct ContentView: View {
 
 enum SearchBenchmarkError: Error, CustomStringConvertible {
     case dbNotFound(database: String)
+    case unsupportedDataSize(database: String, size: String)
 
     var description: String {
         switch self {
         case .dbNotFound(let database):
             return "\(database) DB not found. Please generate fixtures first."
+        case .unsupportedDataSize(let database, let size):
+            return "\(database) does not support \(size) dataset."
         }
     }
 }

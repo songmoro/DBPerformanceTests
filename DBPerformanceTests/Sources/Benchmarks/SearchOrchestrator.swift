@@ -180,6 +180,104 @@ final class SearchOrchestrator {
         }
     }
 
+    /// Realm 관계형 검색 벤치마크 실행
+    /// - Parameter fixturePath: Fixture 파일 경로
+    /// - Parameter dataSize: 데이터 크기 ("100k" 또는 "1m")
+    /// - Returns: 검색 벤치마크 전체 결과
+    func runRealmRelationalBenchmark(fixturePath: String, dataSize: String = "100k") async throws -> SearchBenchmarkReport {
+        let fixturesDir = getFixturesDirectory()
+        let dbPath = "\(fixturesDir)/realm_relational_\(dataSize).realm"
+
+        guard FileManager.default.fileExists(atPath: dbPath) else {
+            throw SearchOrchestratorError.dbFileNotFound(path: dbPath)
+        }
+
+        let searcher = RealmRelationalSearcher(dbPath: dbPath)
+
+        do {
+            try searcher.initializeDB()
+            let environment = EnvironmentCollector.collect()
+            let searchResults = try await scenarios.runRealmRelational(searcher: searcher, indexed: true)
+
+            let report = SearchBenchmarkReport(
+                metadata: SearchBenchmarkReport.Metadata(
+                    timestamp: Date(),
+                    databaseName: "Realm-Relational",
+                    databaseVersion: getRealmVersion(),
+                    environment: environment
+                ),
+                fixtureLoadTimeMs: 0.0,
+                searchResults: searchResults
+            )
+
+            return report
+
+        } catch {
+            throw error
+        }
+    }
+
+    /// CoreData 관계형 검색 벤치마크 실행
+    /// - Parameter fixturePath: Fixture 파일 경로
+    /// - Parameter dataSize: 데이터 크기 ("100k" 또는 "1m")
+    /// - Returns: 검색 벤치마크 전체 결과
+    func runCoreDataRelationalBenchmark(fixturePath: String, dataSize: String = "100k") async throws -> SearchBenchmarkReport {
+        let dbName = "CoreDataRelationalFixture_\(dataSize)"
+        let searcher = CoreDataRelationalSearcher(dbName: dbName)
+
+        do {
+            try searcher.initializeDB()
+            let environment = EnvironmentCollector.collect()
+            let searchResults = try await scenarios.runCoreDataRelational(searcher: searcher, indexed: true)
+
+            let report = SearchBenchmarkReport(
+                metadata: SearchBenchmarkReport.Metadata(
+                    timestamp: Date(),
+                    databaseName: "CoreData-Relational",
+                    databaseVersion: getCoreDataVersion(),
+                    environment: environment
+                ),
+                fixtureLoadTimeMs: 0.0,
+                searchResults: searchResults
+            )
+
+            return report
+
+        } catch {
+            throw error
+        }
+    }
+
+    /// SwiftData 관계형 검색 벤치마크 실행
+    /// - Parameter fixturePath: Fixture 파일 경로
+    /// - Parameter dataSize: 데이터 크기 ("100k" 또는 "1m")
+    /// - Returns: 검색 벤치마크 전체 결과
+    func runSwiftDataRelationalBenchmark(fixturePath: String, dataSize: String = "100k") async throws -> SearchBenchmarkReport {
+        let searcher = SwiftDataRelationalSearcher()
+
+        do {
+            try searcher.initializeDB()
+            let environment = EnvironmentCollector.collect()
+            let searchResults = try await scenarios.runSwiftDataRelational(searcher: searcher, indexed: true)
+
+            let report = SearchBenchmarkReport(
+                metadata: SearchBenchmarkReport.Metadata(
+                    timestamp: Date(),
+                    databaseName: "SwiftData-Relational",
+                    databaseVersion: getSwiftDataVersion(),
+                    environment: environment
+                ),
+                fixtureLoadTimeMs: 0.0,
+                searchResults: searchResults
+            )
+
+            return report
+
+        } catch {
+            throw error
+        }
+    }
+
     /// 모든 DB에 대해 검색 벤치마크 실행
     /// - Parameter fixturePath: Fixture 파일 경로
     /// - Parameter dataSize: 데이터 크기 ("100k" 또는 "1m")

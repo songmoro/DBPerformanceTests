@@ -15,8 +15,8 @@ struct SearchBenchmark {
     /// 검색 작업 시간 측정 및 SearchResult 반환
     /// - Parameter operation: 검색 작업 클로저
     /// - Returns: responseTimeMs가 포함된 SearchResult
-    func measure(_ operation: () throws -> SearchResult) rethrows -> SearchResult {
-        var result: SearchResult!
+    func measure<T: Sendable>(_ operation: () throws -> SearchResult<T>) rethrows -> SearchResult<T> {
+        var result: SearchResult<T>!
 
         let duration = clock.measure {
             result = try! operation()
@@ -35,8 +35,8 @@ struct SearchBenchmark {
     /// 비동기 검색 작업 시간 측정
     /// - Parameter operation: 비동기 검색 작업 클로저
     /// - Returns: responseTimeMs가 포함된 SearchResult
-    func measureAsync(_ operation: () async throws -> SearchResult) async rethrows -> SearchResult {
-        var result: SearchResult!
+    func measureAsync<T: Sendable>(_ operation: () async throws -> SearchResult<T>) async rethrows -> SearchResult<T> {
+        var result: SearchResult<T>!
 
         let duration = try await clock.measure {
             result = try await operation()
@@ -59,8 +59,8 @@ struct SearchBenchmark {
     ///   - indexed: 인덱스 사용 여부
     ///   - queryCondition: 쿼리 조건 설명 (선택)
     /// - Returns: SearchBenchmarkResult
-    static func toBenchmarkResult(
-        _ searchResult: SearchResult,
+    static func toBenchmarkResult<T: Sendable>(
+        _ searchResult: SearchResult<T>,
         scenario: String,
         indexed: Bool,
         queryCondition: String? = nil

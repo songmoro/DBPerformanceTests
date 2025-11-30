@@ -109,7 +109,7 @@ final class CoreDataSearcher {
     // MARK: - Search Methods
 
     /// TM-08: Equality Search
-    func searchByName(_ name: String, indexed: Bool = true) throws -> SearchResult {
+    func searchByName(_ name: String, indexed: Bool = true) throws -> SearchResult<FlatModel> {
         guard let container = self.container else {
             throw CoreDataSearcherError.notInitialized
         }
@@ -125,7 +125,7 @@ final class CoreDataSearcher {
     }
 
     /// TM-09: Range Search
-    func rangeSearch(priceMin: Int, priceMax: Int) throws -> SearchResult {
+    func rangeSearch(priceMin: Int, priceMax: Int) throws -> SearchResult<FlatModel> {
         guard let container = self.container else {
             throw CoreDataSearcherError.notInitialized
         }
@@ -150,7 +150,7 @@ final class CoreDataSearcher {
         priceMin: Int,
         priceMax: Int,
         dateFrom: Date
-    ) throws -> SearchResult {
+    ) throws -> SearchResult<FlatModel> {
         guard let container = self.container else {
             throw CoreDataSearcherError.notInitialized
         }
@@ -172,7 +172,7 @@ final class CoreDataSearcher {
     }
 
     /// TM-11: Full-Text Search
-    func fullTextSearch(_ keyword: String) throws -> SearchResult {
+    func fullTextSearch(_ keyword: String) throws -> SearchResult<FlatModel> {
         guard let container = self.container else {
             throw CoreDataSearcherError.notInitialized
         }
@@ -191,7 +191,7 @@ final class CoreDataSearcher {
     }
 
     /// Category Search (인덱스 효과 측정용)
-    func searchByCategory(_ category: String, indexed: Bool = true) throws -> SearchResult {
+    func searchByCategory(_ category: String, indexed: Bool = true) throws -> SearchResult<FlatModel> {
         guard let container = self.container else {
             throw CoreDataSearcherError.notInitialized
         }

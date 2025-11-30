@@ -24,6 +24,22 @@ func generateFixtures1M() async {
     await generateFixturesWithCount(1_000_000, suffix: "1m")
 }
 
+/// Relational Fixture 생성 실행 함수 (100K 데이터)
+/// - ProductRecord + Tags 1:N 관계
+/// - Realm, CoreData, SwiftData DB 파일 생성
+@MainActor
+func generateRelationalFixtures() async {
+    await generateRelationalFixturesWithCount(100_000, suffix: "100k")
+}
+
+/// Relational Fixture 생성 실행 함수 (1M 데이터)
+/// - ProductRecord + Tags 1:N 관계
+/// - Realm, CoreData, SwiftData DB 파일 생성
+@MainActor
+func generateRelationalFixtures1M() async {
+    await generateRelationalFixturesWithCount(1_000_000, suffix: "1m")
+}
+
 /// 공통 Fixture 생성 함수
 /// - Parameter count: 생성할 데이터 개수
 /// - Parameter suffix: 파일명 접미사 (100k, 1m 등)
@@ -186,4 +202,131 @@ private func generateUserDefaultsDB(jsonPath: String, suffix: String) async thro
     print("   Records loaded: \(countFormatted)")
     print("   Loading time: \(duration)")
     print("   Suite: com.dbperformance.fixture_\(suffix)")
+}
+
+// MARK: - Relational Fixtures Generation
+
+/// Relational Fixture 생성 공통 함수
+/// - Parameter count: 생성할 데이터 개수
+/// - Parameter suffix: 파일명 접미사 (100k, 1m 등)
+@MainActor
+private func generateRelationalFixturesWithCount(_ count: Int, suffix: String) async {
+    let projectDir = FileManager.default.currentDirectoryPath
+    let fixturesPath = "\(projectDir)/Sources/Fixtures"
+
+    // Fixtures 디렉토리 확인/생성
+    if !FileManager.default.fileExists(atPath: fixturesPath) {
+        try? FileManager.default.createDirectory(
+            atPath: fixturesPath,
+            withIntermediateDirectories: true
+        )
+        print("Created directory: \(fixturesPath)")
+    }
+
+    let relationalJsonPath = "\(fixturesPath)/relational-\(suffix).json"
+    let countFormatted = String(format: "%,d", count)
+
+    // Step 1: JSON Fixture 생성
+    print("\n=== Step 1/4: Generating Relational JSON Fixture (\(countFormatted) records) ===")
+    print("Path: \(relationalJsonPath)")
+    if count >= 1_000_000 {
+        print("This will take ~5-10 minutes...\n")
+    } else {
+        print("This will take ~30-60 seconds...\n")
+    }
+
+    var generator = FixtureGenerator(seed: 42)
+
+    do {
+        try generator.generateRelationalFixture(to: relationalJsonPath, count: count)
+        print("✅ Relational JSON fixture created\n")
+    } catch {
+        print("❌ ERROR: Failed to generate relational JSON fixture: \(error)")
+        return
+    }
+
+    // Step 2: Realm DB 생성
+    print("\n=== Step 2/4: Generating Realm Relational DB ===")
+    do {
+        try await generateRealmRelationalDB(jsonPath: relationalJsonPath, fixturesPath: fixturesPath, suffix: suffix)
+        print("✅ Realm Relational DB created\n")
+    } catch {
+        print("❌ ERROR: Failed to generate Realm Relational DB: \(error)")
+    }
+
+    // Step 3: CoreData DB 생성
+    print("\n=== Step 3/4: Generating CoreData Relational DB ===")
+    do {
+        try await generateCoreDataRelationalDB(jsonPath: relationalJsonPath, fixturesPath: fixturesPath, suffix: suffix)
+        print("✅ CoreData Relational DB created\n")
+    } catch {
+        print("❌ ERROR: Failed to generate CoreData Relational DB: \(error)")
+    }
+
+    // Step 4: SwiftData DB 생성
+    print("\n=== Step 4/4: Generating SwiftData Relational DB ===")
+    do {
+        try await generateSwiftDataRelationalDB(jsonPath: relationalJsonPath, fixturesPath: fixturesPath, suffix: suffix)
+        print("✅ SwiftData Relational DB created\n")
+    } catch {
+        print("❌ ERROR: Failed to generate SwiftData Relational DB: \(error)")
+    }
+
+    print("\n🎉 All relational fixtures generated successfully!")
+    print("   JSON: \(relationalJsonPath)")
+    print("   Realm: \(fixturesPath)/realm_relational_\(suffix).realm")
+    print("   CoreData: Application Support/CoreDataRelationalFixture_\(suffix).sqlite")
+    print("   SwiftData: default.store (SwiftData default location)")
+}
+
+/// Realm Relational DB 생성
+@MainActor
+private func generateRealmRelationalDB(jsonPath: String, fixturesPath: String, suffix: String) async throws {
+    let dbPath = "\(fixturesPath)/realm_relational_\(suffix).realm"
+    let searcher = RealmRelationalSearcher(dbPath: dbPath)
+
+    try searcher.initializeDB()
+    let duration = try await searcher.loadFromFixture(path: jsonPath)
+
+    let models = try await RelationalFixtureLoader.loadRelational(from: jsonPath)
+    let countFormatted = String(format: "%,d", models.count)
+
+    print("   Records loaded: \(countFormatted)")
+    print("   Loading time: \(duration)")
+    print("   Path: \(dbPath)")
+}
+
+/// CoreData Relational DB 생성
+@MainActor
+private func generateCoreDataRelationalDB(jsonPath: String, fixturesPath: String, suffix: String) async throws {
+    let dbName = "CoreDataRelationalFixture_\(suffix)"
+    let searcher = CoreDataRelationalSearcher(dbName: dbName)
+
+    try searcher.initializeDB()
+    let duration = try await searcher.loadFromFixture(path: jsonPath)
+
+    let models = try await RelationalFixtureLoader.loadRelational(from: jsonPath)
+    let countFormatted = String(format: "%,d", models.count)
+
+    print("   Records loaded: \(countFormatted)")
+    print("   Loading time: \(duration)")
+
+    let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+    print("   Path: \(appSupport.path)/\(dbName).sqlite")
+}
+
+/// SwiftData Relational DB 생성
+@MainActor
+private func generateSwiftDataRelationalDB(jsonPath: String, fixturesPath: String, suffix: String) async throws {
+    let searcher = SwiftDataRelationalSearcher()
+
+    try searcher.initializeDB()
+    let duration = try await searcher.loadFromFixture(path: jsonPath)
+
+    let models = try await RelationalFixtureLoader.loadRelational(from: jsonPath)
+    let countFormatted = String(format: "%,d", models.count)
+
+    print("   Records loaded: \(countFormatted)")
+    print("   Loading time: \(duration)")
+    print("   Path: default.store (SwiftData default location)")
 }

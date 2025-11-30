@@ -74,7 +74,7 @@ final class UserDefaultsSearcher {
 
     /// TM-08: Equality Search
     /// - 주의: 전체 스캔 (인덱스 미지원)
-    func searchByName(_ name: String, indexed: Bool = false) throws -> SearchResult {
+    func searchByName(_ name: String, indexed: Bool = false) throws -> SearchResult<FlatModel> {
         loadFromDefaultsIfNeeded()
 
         let results = models.filter { $0.name == name }
@@ -82,7 +82,7 @@ final class UserDefaultsSearcher {
     }
 
     /// TM-09: Range Search
-    func rangeSearch(priceMin: Int, priceMax: Int) throws -> SearchResult {
+    func rangeSearch(priceMin: Int, priceMax: Int) throws -> SearchResult<FlatModel> {
         loadFromDefaultsIfNeeded()
 
         let results = models.filter { $0.price >= priceMin && $0.price <= priceMax }
@@ -95,7 +95,7 @@ final class UserDefaultsSearcher {
         priceMin: Int,
         priceMax: Int,
         dateFrom: Date
-    ) throws -> SearchResult {
+    ) throws -> SearchResult<FlatModel> {
         loadFromDefaultsIfNeeded()
 
         let results = models.filter {
@@ -109,7 +109,7 @@ final class UserDefaultsSearcher {
     }
 
     /// TM-11: Full-Text Search
-    func fullTextSearch(_ keyword: String) throws -> SearchResult {
+    func fullTextSearch(_ keyword: String) throws -> SearchResult<FlatModel> {
         loadFromDefaultsIfNeeded()
 
         let results = models.filter {
@@ -120,7 +120,7 @@ final class UserDefaultsSearcher {
     }
 
     /// Category Search
-    func searchByCategory(_ category: String, indexed: Bool = false) throws -> SearchResult {
+    func searchByCategory(_ category: String, indexed: Bool = false) throws -> SearchResult<FlatModel> {
         loadFromDefaultsIfNeeded()
 
         let results = models.filter { $0.category == category }
